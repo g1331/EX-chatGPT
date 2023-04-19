@@ -1,6 +1,6 @@
 from api_class import GoogleSearchAPI, WikiSearchAPI, WolframAPI
 from optimizeOpenAI import ExChatGPT,APICallList
-import threading 
+import threading
 import json
 import re
 import configparser
@@ -12,11 +12,11 @@ program_path = os.path.realpath(__file__)
 program_dir = os.path.dirname(program_path)
 # api config load
 config = configparser.ConfigParser()
-config.read(program_dir+'/apikey.ini')
+config.read(f'{program_dir}/apikey.ini')
 openAIAPIKeys = []
-for i in range(0,10):
-    key = 'key'+str(i)
-    
+for i in range(10):
+    key = f'key{str(i)}'
+
     if key in config['OpenAI']:
         openAIAPIKeys.append(config['OpenAI'][key])
     else:
@@ -39,8 +39,7 @@ def detail_old(query):
     call_res1 = search(APIExtraQuery(query,Sum0))
     Sum1 = Summary(query, call_res1)
     print('\n\nChatGpt: \n' )
-    result  = SumReply(query, str(Sum0) + str(Sum1))
-    return result
+    return SumReply(query, str(Sum0) + str(Sum1))
 def detail(query,conv_id = 'default'):
     global APICallList
     call_res0 = search(APIQuery(query),1000)
@@ -90,7 +89,17 @@ def WebKeyWord(query,conv_id = 'default'):
     if q == "none":
         search_results = '{"results": "No search results"}'
     else:
-        APICallList.append(json.loads(json.dumps({"calls":[{"API":"ddg-api","query": "Searching for:" + q }]})))
+        APICallList.append(
+            json.loads(
+                json.dumps(
+                    {
+                        "calls": [
+                            {"API": "ddg-api", "query": f"Searching for:{q}"}
+                        ]
+                    }
+                )
+            )
+        )
         search_results = requests.post(
             url="https://ddg-api.herokuapp.com/search",
             json={"query": q, "limit": 4},
@@ -98,9 +107,7 @@ def WebKeyWord(query,conv_id = 'default'):
         ).text
     search_res = json.dumps(json.loads(search_results), indent=4,ensure_ascii=False)
     chatbot.add_to_conversation(
-        "Search results:" + search_res,
-        "system",
-        convo_id=conv_id,
+        f"Search results:{search_res}", "system", convo_id=conv_id
     )
     APICallList.append(hint_answer_generating)
     result = chatbot.ask(query, "user", convo_id=conv_id)
@@ -121,7 +128,7 @@ def directQuery(query,conv_id = 'default',prompt = ''):
     print(f'Direct Query: {query}\nChatGpt: {response}')
     return response +'\n\n token_cost: '+ str(chatbot.token_cost())
 def APIQuery(query,resp =''):
-    with open(program_dir+"/prompts/APIPrompt.txt", "r", encoding='utf-8') as f:
+    with open(f"{program_dir}/prompts/APIPrompt.txt", "r", encoding='utf-8') as f:
         prompt = f.read()
     prompt = prompt.replace("{query}", query)
     prompt = prompt.replace("{resp}", resp)
@@ -132,14 +139,14 @@ def APIQuery(query,resp =''):
     match = re.search(pattern, response)
     global APICallList
     if match:
-        json_data = match.group(1)
+        json_data = match[1]
         result = json.loads(json_data)
         print(f'API calls: {result}\n')
         APICallList.append(result)
         return result
     return json.loads("{\"calls\":[]}")
 def APIExtraQuery(query,callResponse):
-    with open(program_dir+"/prompts/APIExtraPrompt.txt", "r",encoding='utf-8') as f:
+    with open(f"{program_dir}/prompts/APIExtraPrompt.txt", "r", encoding='utf-8') as f:
         prompt = f.read()
     prompt = prompt.replace("{query}", query)
     prompt = prompt.replace("{callResponse}", str(callResponse))
@@ -149,7 +156,7 @@ def APIExtraQuery(query,callResponse):
     match = re.search(pattern, response)
     global APICallList
     if match:
-        json_data = match.group(1)
+        json_data = match[1]
         result = json.loads(json_data)
         APICallList.append(result)
         print(f'API calls: {result}\n')
@@ -159,7 +166,7 @@ hint_answer_generating = json.loads(json.dumps({"calls":[{"API":"ExChatGPT","que
 def SumReply(query, apicalls, max_token=2000, conv_id = 'default'):
     global APICallList
     APICallList.append(hint_answer_generating)
-    with open(program_dir+"/prompts/ReplySum.txt", "r",encoding='utf-8') as f:
+    with open(f"{program_dir}/prompts/ReplySum.txt", "r", encoding='utf-8') as f:
         prompt = f.read()
     apicalls = str(apicalls)
     while(chatbot.token_str(apicalls) > max_token):
@@ -170,7 +177,7 @@ def SumReply(query, apicalls, max_token=2000, conv_id = 'default'):
     print(f'ChatGPT SumReply:\n  {response}\n')
     return response
 def Summary(query, callResponse):
-    with open(program_dir+"/prompts/summary.txt", "r",encoding='utf-8') as f:
+    with open(f"{program_dir}/prompts/summary.txt", "r", encoding='utf-8') as f:
         prompt = f.read()
     prompt = prompt.replace("{query}", query)
     prompt = prompt.replace("{callResponse}", callResponse)
@@ -187,20 +194,23 @@ def search(content,max_token=2000,max_query=5):
         search_data = GoogleSearchAPI.call(query, num_results=num_results)
         if summarzie:
             summary_data = search_data
-            call_res['google/' + query] = summary_data
+            call_res[f'google/{query}'] = summary_data
         else:
-            call_res['google/' + query] = search_data
+            call_res[f'google/{query}'] = search_data
+
     def wiki_search(query, num_results=3,summarzie = False):
         search_data = WikiSearchAPI.call(query, num_results=num_results)
         if summarzie:
             summary_data = search_data
-            call_res['wiki/' + query] = summary_data
+            call_res[f'wiki/{query}'] = summary_data
         else:
-            call_res['wiki/' + query] = search_data
-        call_res['wiki/' + query] = search_data
+            call_res[f'wiki/{query}'] = search_data
+        call_res[f'wiki/{query}'] = search_data
+
     def wolfram_search(query, num_results=3):
         search_data = WolframAPI.call(query, num_results)
-        call_res['wolfram/' + query] = search_data
+        call_res[f'wolfram/{query}'] = search_data
+
     all_threads = []
     for call in call_list[:max_query]:
         q = call['query']

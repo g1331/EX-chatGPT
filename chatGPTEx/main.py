@@ -14,8 +14,7 @@ program_dir = os.path.dirname(program_path)
 
 def parse_text(text):
     md = MarkdownIt("commonmark", {"highlight": Highlighter()}).enable("table")
-    res = MarkdownConverter(md).convert(text)
-    return res
+    return MarkdownConverter(md).convert(text)
 app = Flask(__name__)
 app.static_folder = 'static'
 
@@ -32,48 +31,40 @@ def get_bot_response():
     uuid = str(request.args.get('uuid'))
     now = datetime.datetime.now()
     now = now.strftime("%Y-%m-%d %H:%M")
-    if mode=="chat":
-        q = str(userText)
-        promptName = str(request.args.get('prompt'))
-        if promptName != "":
-            if promptName in promptsDict:
-                prompt = promptsDict[promptName]
-            else:
-                prompt = str(SearchPrompt(promptName)[0])
-                print(prompt)
-                prompt = promptsDict[prompt]
-            res = parse_text(directQuery(q,conv_id=uuid,prompt=prompt))
+    if mode == 'WebKeyWord':
+        return parse_text(WebKeyWord(userText, conv_id=uuid))
+    elif mode == 'webDirect':
+        q = f'current Time: {now}' + '\n\nQuery:' + userText
+        return parse_text(webDirect(q,conv_id=uuid))
+    elif mode == "chat":
+        q = userText
+        if not (promptName := str(request.args.get('prompt'))):
+            return parse_text(directQuery(q,conv_id=uuid))
+        if promptName in promptsDict:
+            prompt = promptsDict[promptName]
         else:
-            res = parse_text(directQuery(q,conv_id=uuid))
-        return res
-    elif mode == "web":
-        q = 'current Time: '+ str(now) + '\n\nQuery:'+ str(userText)
-        res = parse_text(web(q,conv_id=uuid))
-        return res
+            prompt = str(SearchPrompt(promptName)[0])
+            print(prompt)
+            prompt = promptsDict[prompt]
+        return parse_text(directQuery(q,conv_id=uuid,prompt=prompt))
     elif mode == "detail":
-        q = 'current Time: '+ str(now) + '\n\nQuery:'+ str(userText)
-        res = parse_text(detail(q,conv_id=uuid))
-        return res
-    elif mode =='webDirect':
-        q = 'current Time: '+ str(now) + '\n\nQuery:'+ str(userText)
-        res = parse_text(webDirect(q,conv_id=uuid))
-        return res
-    elif mode == 'WebKeyWord':
-        q = str(userText)
-        res = parse_text(WebKeyWord(q,conv_id=uuid))
-        return res
+        q = f'current Time: {now}' + '\n\nQuery:' + userText
+        return parse_text(detail(q,conv_id=uuid))
+    elif mode == "web":
+        q = f'current Time: {now}' + '\n\nQuery:' + userText
+        return parse_text(web(q,conv_id=uuid))
     return "Error"
 
 
 @app.route("/api/chatLists")
 def get_chat_lists():
-    if os.path.isfile(program_dir+'/chatLists.json'):
-        with open(program_dir+'/chatLists.json', 'r', encoding='utf-8') as f:
+    if os.path.isfile(f'{program_dir}/chatLists.json'):
+        with open(f'{program_dir}/chatLists.json', 'r', encoding='utf-8') as f:
             chatLists = json.load(f)
             chatLists["chatLists"] = list(reversed(chatLists["chatLists"]))
             return json.dumps(chatLists)
     else:
-        with open(program_dir+'/chatLists.json', 'w', encoding='utf-8') as f:
+        with open(f'{program_dir}/chatLists.json', 'w', encoding='utf-8') as f:
             defaultChatLists = {
             "chatLists": [{
                     "uuid": "default",
@@ -108,24 +99,22 @@ lastAPICallListLength = len(APICallList)
 @app.route("/api/APIProcess")
 def APIProcess():
     global lastAPICallListLength
-    if len(APICallList) > lastAPICallListLength:
-        lastAPICallListLength +=1
-        return json.dumps(APICallList[lastAPICallListLength-1],ensure_ascii=False)
-    else:
+    if len(APICallList) <= lastAPICallListLength:
         return {}
+    lastAPICallListLength +=1
+    return json.dumps(APICallList[lastAPICallListLength-1],ensure_ascii=False)
 
 
 @app.route('/api/setChatLists',methods=['POST'])
 def set_chat_lists():
-    with open(program_dir+'/chatLists.json', 'w', encoding='utf-8') as f:
+    with open(f'{program_dir}/chatLists.json', 'w', encoding='utf-8') as f:
         json.dump(request.json,f,ensure_ascii=False)
         return 'ok'
     
 @app.route('/api/promptsCompletion',methods=['get'])
 def promptsCompletion():
     prompt = str(request.args.get('prompt'))
-    res = json.dumps(SearchPrompt(prompt),ensure_ascii=False)
-    return res
+    return json.dumps(SearchPrompt(prompt),ensure_ascii=False)
 
 if __name__ == "__main__":
     app.config['JSON_AS_ASCII'] = False

@@ -7,7 +7,7 @@ import os
 program_path = os.path.realpath(__file__)
 program_dir = os.path.dirname(program_path)
 config = configparser.ConfigParser()
-config.read(program_dir+'/apikey.ini')
+config.read(f'{program_dir}/apikey.ini')
 class MetaAPI():
     def __init__(self, api_name, base_url):
         self.api_name = api_name
@@ -63,15 +63,10 @@ class GoogleSearchAPI(MetaAPI):
 
         call_url = base_url + urllib.parse.urlencode(params)
         r = requests.get(call_url)
-        if "items" in r.json():
-            items = r.json()["items"]
-            filter_data = [
-                item["title"] + ": " + item["snippet"] for item in items
-            ]
-            # print(filter_data)
-            return filter_data
-        else:
+        if "items" not in r.json():
             return []
+        items = r.json()["items"]
+        return [item["title"] + ": " + item["snippet"] for item in items]
 
 # class GPT3API(MetaAPI):
 #     def __init__(self):
@@ -119,7 +114,7 @@ class WolframAPI(MetaAPI):
     @staticmethod
     def call(query, num_results=3):
         base_url = 'https://api.wolframalpha.com/v2/query'
-        
+
         query = query.replace('+', ' plus ')
         APPID = str(config['WolframAlpha']['WOLFRAMALPHA_APP_ID']) # type: ignore
         params = {
@@ -145,19 +140,21 @@ class WolframAPI(MetaAPI):
             'sec-ch-ua-mobile': '?0',
             'sec-ch-ua-platform': '"macOS"',
         }
-        
+
         responseFromWolfram = requests.get(
             base_url, params=params, headers=headers)
-        if  'queryresult' in responseFromWolfram.json() and 'pods' in responseFromWolfram.json()['queryresult']:
+        if 'queryresult' in responseFromWolfram.json() and 'pods' in responseFromWolfram.json()['queryresult']:
             pods = responseFromWolfram.json()['queryresult']['pods'][:num_results]
             pods_id = [pod["id"]for pod in pods]
             subplots = [(pod['subpods']) for pod in pods]
-            pods_plaintext = []
-            for subplot in subplots:
-                text = '\n'.join([c['plaintext'] for c in subplot])
-                pods_plaintext.append(text)
-            # pods_plaintext = ['\n'.join(pod['subpods']['plaintext']) for pod in pods]
-            res = [pods_id[i] + ": " + pods_plaintext[i]  for i in range(len(pods_plaintext)) if pods_plaintext[i].strip() != '']
-            return res
+            pods_plaintext = [
+                '\n'.join([c['plaintext'] for c in subplot])
+                for subplot in subplots
+            ]
+            return [
+                f"{pods_id[i]}: {pods_plaintext[i]}"
+                for i in range(len(pods_plaintext))
+                if pods_plaintext[i].strip() != ''
+            ]
         else:
             return []
